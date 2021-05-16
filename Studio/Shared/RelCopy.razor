@@ -1,0 +1,29 @@
+<div class="p-2 m-2 d-flex flex-row align-items-center">
+    <h3>@Rel.Class1Copy:@Rel.Class1 - [@Rel.Name] - @Rel.Class1Copy:@Rel.Class2</h3>
+    @if (!_delete)
+    {
+        <button class="btn btn-secondary m-2" @onclick="Edit">Редактировать</button>
+        <button class="btn btn-danger m-2" @onclick="Delete">Удалить</button>
+    }
+    else
+    {
+        <p>Удаление...</p>
+    }
+</div>
+
+@code{
+    [Parameter]
+    public Rel Rel { get; set; }
+
+    private bool _delete = false;
+
+    private void Edit()
+    {
+
+    }
+
+    private void Delete()
+    {
+
+    }
+}
