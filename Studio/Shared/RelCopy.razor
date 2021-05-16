@@ -1,9 +1,10 @@
+@inject IDriver _driver
+
 <div class="p-2 m-2 d-flex flex-row align-items-center">
-    <h3>@Rel.Class1Copy:@Rel.Class1 - [@Rel.Name] - @Rel.Class1Copy:@Rel.Class2</h3>
+    <h3 class="flex-grow-1">@Rel.Class1Copy:@Rel.Class1 - [@Rel.Name] - @Rel.Class2Copy:@Rel.Class2</h3>
     @if (!_delete)
     {
-        <button class="btn btn-secondary m-2" @onclick="Edit">Редактировать</button>
-        <button class="btn btn-danger m-2" @onclick="Delete">Удалить</button>
+        <button class="btn btn-outline-danger m-2" @onclick="Delete">Удалить</button>
     }
     else
     {
@@ -14,16 +15,26 @@
 @code{
     [Parameter]
     public Rel Rel { get; set; }
+    [Parameter]
+    public string DbName { get; set; }
 
     private bool _delete = false;
 
-    private void Edit()
+    private async void Delete()
     {
-
-    }
-
-    private void Delete()
-    {
-
+        IResultCursor cursor;
+        IAsyncSession session = _driver.AsyncSession(c => c.WithDatabase(DbName));
+        try
+        {
+            string node1 = "n:" + Rel.Class1 + "{title:\"" + Rel.Class1Copy + "\"}";
+            string node2 = "b:" + Rel.Class2 + "{title:\"" + Rel.Class2Copy + "\"}";
+            cursor = await session.RunAsync(@$"match ({node1})-[r:{Rel.Name}]-({node2}) delete r, n, b");
+        }
+        finally
+        {
+            await session.CloseAsync();
+        }
+        _delete = true;
+        StateHasChanged();
     }
 }

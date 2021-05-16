@@ -6,6 +6,17 @@
         <h1 class="flex-grow-1">@CopyName</h1>
         @if (!_delete)
         {
+            @if (_form)
+            {
+                <EditForm class="d-flex flex-row" Model="_newName" OnValidSubmit="Edit">
+                    <input class="form-control mr-2" @bind="_newName" />
+                    <button class="btn btn-secondary">Изменить</button>
+                </EditForm>
+            }
+            else
+            {
+                <button class="btn btn-outline-secondary m-2" @onclick="ShowEdit">Изменить</button>
+            }
             <button class="btn btn-danger m-2" @onclick="Delete">Удалить</button>
         }
         else
@@ -15,7 +26,7 @@
     </div>
     @foreach (Rel rel in _relList)
     {
-        <RelCopy Rel=@rel />
+        <RelCopy Rel=@rel DbName="@DbName"/>
     } 
 </div>
 
@@ -26,6 +37,9 @@
     public string ClassName { get; set; }
     [Parameter]
     public string DbName { get; set; }
+
+    private bool _form = false;
+    private string _newName = "";
 
     private List<Rel> _relList = new List<Rel>();
 
@@ -54,7 +68,7 @@
                 var class2 = value.Value.As<List<string>>()[0];
 
                 value = record.Values.Where(r => r.Key == "b.title").FirstOrDefault();
-                var class2Copy = value.Value.As<List<string>>()[0];
+                var class2Copy = value.Value.As<string>();
 
                 Rel rel = new Rel()
                 {
@@ -75,6 +89,25 @@
         }
         StateHasChanged();
     }
+
+    private async void Edit()
+    {
+        IResultCursor cursor;
+        IAsyncSession session = _driver.AsyncSession(c => c.WithDatabase(DbName));
+        try
+        {
+            cursor = await session.RunAsync(@$"match (n:{ClassName}" + "{title:\"" + CopyName + "\"}) set n.title = \"" + _newName + "\"");
+        }
+        finally
+        {
+            await session.CloseAsync();
+        }
+        _form = false;
+        CopyName = _newName;
+        GetRelList();
+    }
+
+    private void ShowEdit() => _form = true;
 
     private async void Delete()
     {
