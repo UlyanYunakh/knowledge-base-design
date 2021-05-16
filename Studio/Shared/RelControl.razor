@@ -2,7 +2,10 @@
 @inject NavigationManager _manager
 
 <div class="bg-light border rounded p-2 m-2 d-flex flex-row align-items-center">
-    <h1 class="flex-grow-1">@RelName</h1>
+    <div class="flex-grow-1">
+        <h1>@Rel.Name</h1>
+        <h3>@Rel.Class1 - @Rel.Class2</h3>
+    </div>
     @if (!_delete)
     {
         <button class="btn btn-primary m-2" @onclick="Open">Открыть</button>
@@ -16,7 +19,7 @@
 
 @code {
     [Parameter]
-    public string RelName { get; set; }
+    public Rel Rel { get; set; }
     [Parameter]
     public string DbName { get; set; }
 
@@ -33,7 +36,7 @@
         IAsyncSession session = _driver.AsyncSession(c => c.WithDatabase(DbName));
         try
         {
-            cursor = await session.RunAsync(@$"match ()-[r:{RelName}]-() delete r");
+            cursor = await session.RunAsync(@$"match ()-[r:{Rel.Name}]-() delete r");
         }
         finally
         {

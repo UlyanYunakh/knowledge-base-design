@@ -2,7 +2,7 @@
 @inject IDriver _driver
 
 <div class="row">
-    <div class="col-md-6">
+    <div class="col-md-12">
         <div class="row g-2 align-items-center">
             <div class="col-auto">
                 <h1>Классы:</h1>
@@ -10,10 +10,10 @@
             <div class="col-auto">
                 @if (_formClass)
                 {
-                    <div class="d-flex flex-row">
-                        <input type="text" class="form-control mr-2" @bind="_className" />
-                        <button class="btn btn-primary" @onclick="CreateClass">Добавить</button>
-                    </div>
+                    <EditForm class="d-flex flex-row" Model="_className" OnValidSubmit="CreateClass">
+                        <InputText required type="text" class="form-control mr-2" @bind-Value="_className" />
+                        <button class="btn btn-primary">Добавить</button>
+                    </EditForm>
                 }
                 else
                 {
@@ -23,10 +23,10 @@
         </div>
         @foreach (string className in _classNames)
         {
-            <ClassControl ClassName=@className></ClassControl>
+            <ClassControl ClassName=@className DbName=@DbName></ClassControl>
         }
     </div>
-    <div class="col-md-6">
+    <div class="col-md-12">
         <div class="row g-2 align-items-center">
             <div class="col-auto">
                 <h1>Отношения:</h1>
@@ -34,9 +34,25 @@
             <div class="col-auto">
                 @if (_formRel)
                 {
-                    <div class="d-flex flex-row">
-                        <input type="text" class="form-control mr-2" @bind="_relName" />
-                        <button class="btn btn-primary" @onclick="CreateRel">Добавить</button>
+                    <div>
+                        <div>
+                            <EditForm class="d-flex flex-row" Model="_rel" OnValidSubmit="CreateRel">
+                                <select required class="form-control mr-2" @bind="_rel.Class1Id">
+                                    @for (int i = 0; i < _classNames.Count; i++)
+                                    {
+                                        <option value="@i">@_classNames[i]</option>
+                                    }
+                                </select>
+                                <InputText required class="form-control mr-2" @bind-Value="_rel.Name" />
+                                <select required class="form-control mr-2" @bind="_rel.Class2Id">
+                                    @for (int i = 0; i < _classNames.Count; i++)
+                                    {
+                                        <option value="@i">@_classNames[i]</option>
+                                    }
+                                </select>
+                                <button class="btn btn-primary">Добавить</button>
+                            </EditForm>
+                        </div>
                     </div>
                 }
                 else
@@ -45,9 +61,9 @@
                 }
             </div>
         </div>
-        @foreach (string relName in _relNames)
+        @foreach (Rel rel in _relList)
         {
-            <RelControl RelName=@relName DbName=@DbName></RelControl>
+            <RelControl Rel=@rel DbName=@DbName></RelControl>
         }
     </div>
 </div>
@@ -61,8 +77,8 @@
     private List<string> _classNames = new List<string>();
 
     private bool _formRel = false;
-    private string _relName = "";
-    private List<string> _relNames = new List<string>();
+    private Rel _rel = new Rel();
+    private List<Rel> _relList = new List<Rel>();
 
     protected override void OnInitialized()
     {
@@ -96,14 +112,11 @@
 
     private async void CreateClass()
     {
-        if (_className == "")
-            return;
-
         IResultCursor cursor;
         IAsyncSession session = _driver.AsyncSession(c => c.WithDatabase(DbName));
         try
         {
-            cursor = await session.RunAsync(@$"CREATE (n:{_className}"+"{title:\""+$"{_className}"+"\"})");
+            cursor = await session.RunAsync(@$"CREATE (n:{_className})");
         }
         finally
         {
@@ -120,19 +133,33 @@
 
     private async void GetRelNames()
     {
-        _relNames = new List<string>();
+        _relList = new List<Rel>();
         IResultCursor cursor;
         IAsyncSession session = _driver.AsyncSession(c => c.WithDatabase(DbName));
         try
         {
-            cursor = await session.RunAsync(@"match ()-[r]-() return type(r)");
+            cursor = await session.RunAsync(@"match (n)-[r]-(b) return labels(n), type(r), labels(b)");
             var list = await cursor.ToListAsync();
             foreach (IRecord record in list)
             {
                 var value = record.Values.Where(r => r.Key == "type(r)").FirstOrDefault();
                 var name = value.Value.As<string>();
-                if (!_relNames.Contains(name))
-                    _relNames.Add(name);
+
+                if (_relList.Where(r => r.Name == name).Count() == 0)
+                {
+                    value = record.Values.Where(r => r.Key == "labels(n)").FirstOrDefault();
+                    var class1 = value.Value.As<List<string>>()[0];
+
+                    value = record.Values.Where(r => r.Key == "labels(b)").FirstOrDefault();
+                    var class2 = value.Value.As<List<string>>()[0];
+
+                    _relList.Add(new Rel()
+                    {
+                        Name = name,
+                        Class1 = class1,
+                        Class2 = class2
+                    });
+                }
             }
         }
         finally
@@ -144,14 +171,11 @@
 
     private async void CreateRel()
     {
-        if (_relName == "")
-            return;
-
         IResultCursor cursor;
         IAsyncSession session = _driver.AsyncSession(c => c.WithDatabase(DbName));
         try
         {
-            string query = @$"CREATE ()-[r:{_relName}]->()";
+            string query = @$"CREATE (n:{_classNames[_rel.Class1Id]})-[r:{_rel.Name}]->(b:{_classNames[_rel.Class2Id]})";
             cursor = await session.RunAsync(query);
         }
         finally
@@ -159,7 +183,7 @@
             await session.CloseAsync();
         }
 
-        _relName = "";
+        _rel = new Rel();
         _formRel = false;
 
         GetRelNames();
