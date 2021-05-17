@@ -60,9 +60,10 @@
     }
 
     private void ShowCreateForm() => _form = true;
+
     private async void Create()
     {
-        if(_name == "")
+        if (_name == "")
             return;
 
         IResultCursor cursor;
@@ -76,9 +77,27 @@
             await session.CloseAsync();
         }
 
+        await CreateClass(_name);
+
         _name = "";
         _form = false;
 
         GetDbNames();
+    }
+
+    private async Task CreateClass(string name)
+    {
+        IResultCursor cursor;
+        IAsyncSession session = _driver.AsyncSession(c => c.WithDatabase(name));
+        try
+        {
+            cursor = await session.RunAsync(@$"CREATE (n:Person)-[r:Has]->(b:Job)");
+            cursor = await session.RunAsync(@$"CREATE (n:Person)-[r:In]->(b:Department)");
+            cursor = await session.RunAsync(@$"CREATE (n:Person)-[r:Head]->(b:Department)");
+        }
+        finally
+        {
+            await session.CloseAsync();
+        }
     }
 }

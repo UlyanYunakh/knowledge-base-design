@@ -66,6 +66,67 @@
             <RelControl Rel=@rel DbName=@DbName></RelControl>
         }
     </div>
+    <div class="col-md-12 mb-2">
+        <div class="row g-2 align-items-center">
+            @if (_formClassFind)
+            {
+                <EditForm class=" col-auto d-flex flex-row" Model="_className" OnValidSubmit="ClassFind">
+                    <select required class="form-control mr-2" @bind="_classId">
+                        @for (int i = 0; i < _classNames.Count; i++)
+                        {
+                            <option value="@i">@_classNames[i]</option>
+                        }
+                    </select>
+                    <InputText required type="text" class="form-control mr-2" @bind-Value="_className" />
+                    <button class="btn btn-primary">Найти</button>
+                </EditForm>
+            }
+            else
+            {
+                <button class="btn btn-outline-primary " @onclick="ShowClassFind">Найти экземпляр</button>
+            }
+        </div>
+        @if(_classFind != "")
+        {
+            <ClassCopyControl ClassName=@_classNames[_classId] CopyName=@_classFind DbName=@DbName></ClassCopyControl>
+            _classFind = "";
+        }
+    </div>
+    <div class="col-md-12 mb-2">
+        <div class="row g-2 align-items-center">
+            @if (_formRelFind)
+            {
+                <EditForm class=" col-auto d-flex flex-row" Model="_className" OnValidSubmit="RelFind">
+                    <select required class="form-control mr-2" @bind="_class1Id">
+                        @for (int i = 0; i < _classNames.Count; i++)
+                        {
+                            <option value="@i">@_classNames[i]</option>
+                        }
+                    </select>
+                    <InputText required type="text" class="form-control mr-2" @bind-Value="_class1Name" />
+                    <InputText required type="text" class="form-control mr-2" @bind-Value="_relName" />
+                    <select required class="form-control mr-2" @bind="_class2Id">
+                        @for (int i = 0; i < _classNames.Count; i++)
+                        {
+                            <option value="@i">@_classNames[i]</option>
+                        }
+                    </select>
+                    <InputText required type="text" class="form-control mr-2" @bind-Value="_class2Name" />
+                    <button class="btn btn-primary">Найти</button>
+                </EditForm>
+            }
+            else
+            {
+                <button class="btn btn-outline-primary " @onclick="ShowRelFind">Найти отношение</button>
+            }
+        </div>
+        @if(_findRel != null)
+        {
+            <div class="bg-light border rounded p-2 m-2">
+                <RelCopy Rel=@_findRel DbName=@DbName></RelCopy>
+            </div>
+        }
+    </div>
 </div>
 @code{
     [Parameter]
@@ -80,10 +141,91 @@
     private Rel _rel = new Rel();
     private List<Rel> _relList = new List<Rel>();
 
+    private bool _formClassFind = false;
+    private int _classId;
+    private string _classFind = "";
+
+    private int _class1Id;
+    private string _class1Name = "";
+    private int _class2Id;
+    private string _class2Name = "";
+    private string _relName = "";
+    private bool _formRelFind = false;
+    private Rel _findRel = null;
+
     protected override void OnInitialized()
     {
         GetClassNames();
         GetRelNames();
+    }
+    private void ShowRelFind() => _formRelFind = true;
+    private async void RelFind()
+    {
+        IResultCursor cursor;
+        IAsyncSession session = _driver.AsyncSession(c => c.WithDatabase(DbName));
+        try
+        {
+            string node1 = "n:" + _classNames[_class1Id] + "{title:\"" + _class1Name + "\"}";
+            string node2 = "b:" + _classNames[_class2Id] + "{title:\"" + _class2Name + "\"}";
+            cursor = await session.RunAsync(@$"match ({node1})-[r:{_relName}]-({node2}) return type(r), labels(b), b.title, labels(n), n.title");
+            var list = await cursor.ToListAsync();
+            foreach (IRecord record in list)
+            {
+                var value = record.Values.Where(r => r.Key == "type(r)").FirstOrDefault();
+                var relName = value.Value.As<string>();
+                
+                value = record.Values.Where(r => r.Key == "labels(n)").FirstOrDefault();
+                var class1 = value.Value.As<List<string>>()[0];
+
+                value = record.Values.Where(r => r.Key == "n.title").FirstOrDefault();
+                var class1Copy = value.Value.As<string>();
+
+                value = record.Values.Where(r => r.Key == "labels(b)").FirstOrDefault();
+                var class2 = value.Value.As<List<string>>()[0];
+
+                value = record.Values.Where(r => r.Key == "b.title").FirstOrDefault();
+                var class2Copy = value.Value.As<string>();
+
+                _findRel = new Rel()
+                {
+                    Name = relName,
+                    Class1 = class1,
+                    Class1Copy = class1Copy,
+                    Class2 = class2,
+                    Class2Copy = class2Copy
+                };
+            }
+        }
+        finally
+        {
+            await session.CloseAsync();
+        }
+        _formRelFind = false;
+        StateHasChanged();
+    }
+
+    private void ShowClassFind() => _formClassFind = true;
+
+    private async void ClassFind()
+    {
+        IResultCursor cursor;
+        IAsyncSession session = _driver.AsyncSession(c => c.WithDatabase(DbName));
+        try
+        {
+            cursor = await session.RunAsync(@"MATCH (n:" + _classNames[_classId] + "{title:\"" + _className + "\"}) return n.title");
+            var list = await cursor.ToListAsync();
+            foreach (IRecord record in list)
+            {
+                var value = record.Values.Where(r => r.Key == "n.title").FirstOrDefault();
+                _classFind = value.Value.As<string>();
+            }
+        }
+        finally
+        {
+            await session.CloseAsync();
+        }
+        _formClassFind = false;
+        StateHasChanged();
     }
 
     private async void GetClassNames()
